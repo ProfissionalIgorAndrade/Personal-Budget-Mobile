@@ -47,12 +47,34 @@ POST /api/authentication/logout   { refreshToken }
   cleared and the app returns to the login screen.
 - The login endpoint is rate limited to 5 attempts per minute per client.
 
+## Dashboard
+
+The dashboard uses the aggregated endpoints of the backend (one request per
+section, loaded in parallel; a failing section does not blank the screen):
+
+| Section | Endpoint |
+| --- | --- |
+| Month summary + breakdown | `GET /api/dashboard/summary?month&year` |
+| Cash flow (6 months) | `GET /api/dashboard/trends?months&endMonth&endYear` |
+| Expenses by category | `GET /api/transactions/month/{m}/year/{y}/grouped-by-category` |
+| Savings opportunities | `GET /api/dashboard/opportunities?month&year&lookbackMonths` |
+| Latest transactions | `GET /api/transactions/month/{m}/year/{y}?page=1` |
+| Accounts | `GET /api/accounts/summary` |
+
+Pull down to refresh; use the arrows to change the month.
+
+The active household is resolved by the backend (first household of the user).
+The `X-Household-Id` header is not sent yet, so a household switcher is a
+future step.
+
 ## Structure
 
 ```
 src/
   app/            Expo Router screens (_layout, login, index = dashboard)
-  api/            HTTP client and auth endpoint
+  api/            HTTP client, auth and dashboard endpoints
+  features/       Feature code (dashboard hook and cards)
+  lib/            Formatting helpers (BRL currency, months)
   auth/           AuthContext + secure token storage
   config.ts       Environment configuration
   theme.ts        Colors and spacing
