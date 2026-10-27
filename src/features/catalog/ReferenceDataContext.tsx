@@ -13,15 +13,11 @@ import {
   type MemberProfile,
 } from '@/api/catalogApi';
 import { setActiveHouseholdId } from '@/api/client';
-import { userIdFromToken } from '@/auth/jwt';
-import { getTokens } from '@/auth/tokenStorage';
 import { onDataChanged } from '@/lib/dataEvents';
 
 type ReferenceData = {
   household: Household | null;
   profiles: MemberProfile[];
-  // Member profile linked to the signed-in user (default owner of new cards/accounts).
-  myProfileId: string | null;
   categories: Category[];
   cards: CreditCard[];
   accounts: Account[];
@@ -41,7 +37,6 @@ const byName = <T,>(getName: (item: T) => string) => (a: T, b: T) =>
 export function ReferenceDataProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<Household | null>(null);
   const [profiles, setProfiles] = useState<MemberProfile[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -58,16 +53,14 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
       if (!active) throw new Error('Nenhum lar encontrado na sua conta.');
       setActiveHouseholdId(active.id);
 
-      const [profs, cats, cds, accs, tokens] = await Promise.all([
+      const [profs, cats, cds, accs] = await Promise.all([
         fetchProfiles(active.id),
         fetchCategories(),
         fetchCreditCards(),
         fetchAccounts(),
-        getTokens(),
       ]);
       if (id !== requestId.current) return;
 
-      setUserId(tokens ? userIdFromToken(tokens.accessToken) : null);
       setHousehold(active);
       setProfiles([...(profs ?? [])].sort(byName((p) => p.displayName)));
       setCategories([...(cats ?? [])].sort(byName((c) => c.name)));
@@ -87,14 +80,9 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => onDataChanged(() => void reload()), [reload]);
 
-  const myProfileId = useMemo(
-    () => (userId ? profiles.find((p) => p.userId === userId)?.id ?? null : null),
-    [profiles, userId],
-  );
-
   const value = useMemo(
-    () => ({ household, profiles, myProfileId, categories, cards, accounts, loading, error, reload }),
-    [household, profiles, myProfileId, categories, cards, accounts, loading, error, reload],
+    () => ({ household, profiles, categories, cards, accounts, loading, error, reload }),
+    [household, profiles, categories, cards, accounts, loading, error, reload],
   );
 
   return <ReferenceDataContext.Provider value={value}>{children}</ReferenceDataContext.Provider>;

@@ -1,14 +1,7 @@
-// Notifies screens that server data changed (something was created), so the
-// dashboard and reference lists can reload without a manual pull to refresh.
-// When the change is a new record, its entity and id travel along so a form
-// that sent the user to create it can select it on return.
+// Notifies screens that server data changed (a transaction was created), so
+// the dashboard can reload without a manual pull to refresh.
 
-export type CreatedRecord = {
-  entity: 'transaction' | 'category' | 'card' | 'account' | 'savingsBox' | 'member' | 'budget';
-  id: string | null;
-};
-
-type Listener = (created?: CreatedRecord) => void;
+type Listener = () => void;
 
 const listeners = new Set<Listener>();
 
@@ -19,6 +12,6 @@ export function onDataChanged(listener: Listener): () => void {
   };
 }
 
-export function emitDataChanged(created?: CreatedRecord): void {
-  listeners.forEach((listener) => listener(created));
+export function emitDataChanged(): void {
+  listeners.forEach((listener) => listener());
 }
