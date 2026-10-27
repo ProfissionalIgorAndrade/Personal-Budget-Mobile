@@ -14,6 +14,7 @@ import {
   type SavingsOpportunity,
   type Transaction,
 } from '@/api/dashboardApi';
+import { onDataChanged } from '@/lib/dataEvents';
 import type { YearMonth } from '@/lib/format';
 
 export type Section<T> = {
@@ -94,6 +95,10 @@ export function useDashboard(period: YearMonth) {
   }, [load]);
 
   const refresh = useCallback(() => load(true), [load]);
+
+  // A new transaction (or account, card...) changes the numbers: reload
+  // quietly so the dashboard is current when the form closes.
+  useEffect(() => onDataChanged(() => void load(true)), [load]);
 
   return { state, refreshing, refresh };
 }
