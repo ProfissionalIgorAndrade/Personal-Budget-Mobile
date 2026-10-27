@@ -63,47 +63,44 @@ section, loaded in parallel; a failing section does not blank the screen):
 
 Pull down to refresh; use the arrows to change the month.
 
-The active household is resolved by the backend (first household of the user).
-The `X-Household-Id` header is not sent yet, so a household switcher is a
-future step.
+The active household is the first household of the user, as on the web.
 
-## Creating records
+## Creating transactions
 
-The **+** button on the dashboard opens the quick entry form; **Cadastros**
-(or a long press on **+**) opens the hub with every create flow.
+The app only creates transactions; categories, cards, accounts and the rest
+are managed on the web. The **+** button on the dashboard opens the entry form.
 
 | Flow | Endpoint | Rules (same as backend and web) |
 | --- | --- | --- |
 | Expense / income | `POST /api/transactions` | Category required. Account: one-off or Fixed (12 monthly rows, `repeatCount: 12`). Card: one-off (`Variable`) or installments (expense only, 2-60x, `totalAmount` split by the backend); statement month/year required. Income on a card is a refund. |
 | Transfer | `POST /api/transactions` | `paymentMethod: Transfer`, two different accounts, a savings box is never the origin. |
-| Category | `POST /api/categories` | Name, type, icon, color. |
-| Credit card | `POST /api/credit-cards` | Name, limit > 0, due day 1-31, owner. |
-| Account | `POST /api/accounts` | Bank enum, owner, optional nickname (max 80). |
-| Savings box | `POST /api/accounts/savings-boxes` | Parent checking account and name. |
-| Member | `POST /api/households/{id}/profiles` | Shared profile (no login). |
-| Budget | `POST /api/budgets` | Expense category, month, limit > 0 (upsert). |
 
 The payload rules live in `src/features/transactions/transactionPayload.ts`,
 a port of the web's `createTransactionPayload.js`.
 
+The form lists every registered category (Despesas and Receitas groups; picking
+one from the other group switches the kind) and every card and account (Cartões
+and Contas groups; cards with the same name show the owner). A search field
+appears above 12 categories.
+
 Quick entry is built for speed: amount (keypad style, always appends on the
 right) -> category -> save. The form remembers, on the device only, the last
 account/card per kind, the member, how many months ahead each card's statement
-usually is, and the most used categories (shown first). An empty description
-falls back to the category name. "Salvar e lançar outra" keeps the form open.
+usually is, and the most used categories (shown first in each group). An empty
+description falls back to the category name. "Salvar e lançar outra" keeps the
+form open.
 
 All authenticated requests carry `X-Household-Id` (first household of the
-user, as on the web), so ids picked in the forms always belong to the same
-household the transaction is created in.
+user, as on the web).
 
 ## Structure
 
 ```
 src/
   app/            Expo Router screens (_layout, login, index = dashboard)
-  api/            HTTP client, auth, dashboard, catalog and create endpoints
+  api/            HTTP client, auth, dashboard, catalog and transaction endpoints
   components/ui/  Form building blocks (chips, amount keypad, dates, buttons)
-  features/       dashboard, catalog (reference data), transactions, register
+  features/       dashboard, catalog (reference data), transactions
   lib/            Formatting, dates, keypad and data change events
   auth/           AuthContext + secure token storage
   config.ts       Environment configuration
@@ -111,4 +108,4 @@ src/
 ```
 
 Routes are guarded with `Stack.Protected`: signed-out users only see `login`,
-signed-in users see the dashboard and the create screens (presented as modals).
+signed-in users see the dashboard and the transaction form (presented as a modal).
