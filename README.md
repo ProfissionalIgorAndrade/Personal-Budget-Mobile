@@ -19,6 +19,20 @@ Current scope: **login** and an **empty dashboard** with log out.
 
 If the iPhone cannot reach the dev server, try `npx expo start --tunnel`.
 
+## Install permanently (sideloading, no paid Apple account)
+
+Apple free-account signatures expire after 7 days. [SideStore](https://sidestore.io)
+re-signs the app on the device automatically, so no computer is needed after setup.
+
+1. Push this repository to GitHub (private is fine).
+2. Actions -> **Build unsigned iOS IPA** -> *Run workflow*. When it finishes,
+   download the `PersonalBudget-ipa` artifact and unzip it to get `PersonalBudget.ipa`.
+3. Install SideStore on the iPhone (follow the SideStore docs; it needs a computer once).
+4. Open the `.ipa` with SideStore (Files -> share -> SideStore). It signs it with your Apple ID.
+
+To update the app, run the workflow again and install the new `.ipa` over the old one.
+The free account allows 3 active apps per device and 10 App IDs per week.
+
 ## Configuration
 
 Defaults work out of the box (production API). Copy `.env.example` to `.env` only to override.
