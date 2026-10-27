@@ -29,7 +29,7 @@ import {
   type TxFrequency,
   type TxKind,
 } from '@/features/transactions/transactionPayload';
-import { emitDataChanged, onDataChanged } from '@/lib/dataEvents';
+import { emitDataChanged } from '@/lib/dataEvents';
 import { shortMonthLabel, statementDueLabel, statementFor, todayIso } from '@/lib/dates';
 import { formatCurrency } from '@/lib/format';
 import { colors, radius, spacing } from '@/theme';
@@ -44,11 +44,15 @@ const KIND_NOUN: Record<TxKind, string> = { expense: 'despesa', income: 'receita
 
 const INSTALLMENT_SHORTCUTS = [2, 3, 4, 5, 6, 10, 12];
 const STATEMENT_OFFSETS = [-1, 0, 1, 2];
-const COLLAPSED_CATEGORY_COUNT = 8;
+// Above this many categories a search field is shown above the lists.
+const SEARCH_THRESHOLD = 12;
 // The backend's own category for transfers; it is never picked by hand.
 const TRANSFER_CATEGORY = 'transferência';
 
 const isSavings = (account: Account) => account.kind === 'Savings';
+type SourceOption = { source: PaymentSource; label: string; icon: string };
+type SourceGroup = { title: string; options: SourceOption[] };
+
 const sameSource = (a: PaymentSource | null, b: PaymentSource | null) => !!a && !!b && a.type === b.type && a.id === b.id;
 
 export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
@@ -70,7 +74,6 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
   const [notes, setNotes] = useState('');
   const [fromAccountId, setFromAccountId] = useState<string | null>(null);
   const [toAccountId, setToAccountId] = useState<string | null>(null);
-  const [showAllCategories, setShowAllCategories] = useState(false);
   const [categoryQuery, setCategoryQuery] = useState('');
   const [showMore, setShowMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -78,27 +81,42 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
   const [success, setSuccess] = useState<string | null>(null);
   const initialized = useRef(false);
   const previousKind = useRef<TxKind | null>(null);
-  // Record created from inside this form ("+ Nova"), selected once it shows up.
-  const [pendingCreated, setPendingCreated] = useState<{ entity: string; id: string } | null>(null);
 
   const checkingAccounts = useMemo(() => accounts.filter((a) => !isSavings(a)), [accounts]);
 
+  // Every registered card and account is listed. Two cards with the same name
+  // (e.g. one Nubank per person) are told apart by the owner's name.
+  const cardOptions = useMemo((): SourceOption[] => {
+    const nameCount = new Map<string, number>();
+    cards.forEach((c) => nameCount.set(c.name, (nameCount.get(c.name) ?? 0) + 1));
+    return cards.map((c) => {
+      const owner = profiles.find((p) => p.id === c.memberId)?.displayName;
+      return {
+        source: { type: 'card' as const, id: c.id },
+        label: (nameCount.get(c.name) ?? 0) > 1 && owner ? `${c.name} · ${owner}` : c.name,
+        icon: '💳',
+      };
+    });
+  }, [cards, profiles]);
+
+  const accountOptions = useMemo(
+    (): SourceOption[] =>
+      checkingAccounts.map((a) => ({
+        source: { type: 'account' as const, id: a.id },
+        label: a.displayName,
+        icon: '🏦',
+      })),
+    [checkingAccounts],
+  );
+
   // Cards first for expenses (most purchases), accounts first for income.
-  const sourceOptions = useMemo(() => {
-    const cardOptions = cards.map((c) => ({
-      source: { type: 'card' as const, id: c.id },
-      label: c.name,
-      icon: '💳',
-      color: c.color,
-    }));
-    const accountOptions = checkingAccounts.map((a) => ({
-      source: { type: 'account' as const, id: a.id },
-      label: a.displayName,
-      icon: '🏦',
-      color: null,
-    }));
-    return kind === 'income' ? [...accountOptions, ...cardOptions] : [...cardOptions, ...accountOptions];
-  }, [cards, checkingAccounts, kind]);
+  const sourceGroups = useMemo((): SourceGroup[] => {
+    const cardGroup = { title: 'Cartões', options: cardOptions };
+    const accountGroup = { title: 'Contas', options: accountOptions };
+    return kind === 'income' ? [accountGroup, cardGroup] : [cardGroup, accountGroup];
+  }, [cardOptions, accountOptions, kind]);
+
+  const sourceOptions = useMemo(() => sourceGroups.flatMap((g) => g.options), [sourceGroups]);
 
   const sourceExists = (s: PaymentSource | null | undefined) =>
     !!s && sourceOptions.some((option) => sameSource(option.source, s));
@@ -135,53 +153,29 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, prefs, sourceOptions]);
 
-  useEffect(
-    () =>
-      onDataChanged((created) => {
-        if (created?.id && ['category', 'card', 'account'].includes(created.entity)) {
-          setPendingCreated({ entity: created.entity, id: created.id });
-        }
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    if (!pendingCreated) return;
-    const { entity, id } = pendingCreated;
-    if (entity === 'category' && categories.some((c) => c.id === id)) {
-      setCategoryId(id);
-      setPendingCreated(null);
-    } else if (entity === 'card' && cards.some((c) => c.id === id)) {
-      setSource({ type: 'card', id });
-      setPendingCreated(null);
-    } else if (entity === 'account' && accounts.some((a) => a.id === id)) {
-      setSource({ type: 'account', id });
-      setPendingCreated(null);
-    }
-  }, [pendingCreated, categories, cards, accounts]);
-
   // Each card remembers how far its statement usually is from the purchase.
   useEffect(() => {
     if (source?.type === 'card') setStatementOffset(prefs?.statementOffsetByCard[source.id] ?? 0);
   }, [source, prefs]);
 
-  const categoryType = kind === 'income' ? 'Income' : 'Expense';
-  const categoriesForKind = useMemo(() => {
-    const usage = prefs?.categoryUsage ?? {};
-    return categories
-      .filter((c) => c.type === categoryType && c.name.trim().toLowerCase() !== TRANSFER_CATEGORY)
-      .sort((a, b) => (usage[b.id] ?? 0) - (usage[a.id] ?? 0) || a.name.localeCompare(b.name, 'pt-BR'));
-  }, [categories, categoryType, prefs]);
+  // All registered categories, expenses and incomes, each group sorted by how
+  // often it is used, then by name. The group of the current kind comes first.
+  const selectableCategories = useMemo(
+    () => categories.filter((c) => c.name.trim().toLowerCase() !== TRANSFER_CATEGORY),
+    [categories],
+  );
 
-  const visibleCategories = useMemo(() => {
+  const categoryGroups = useMemo(() => {
+    const usage = prefs?.categoryUsage ?? {};
     const query = categoryQuery.trim().toLowerCase();
-    if (query) return categoriesForKind.filter((c) => c.name.toLowerCase().includes(query));
-    if (showAllCategories) return categoriesForKind;
-    const top = categoriesForKind.slice(0, COLLAPSED_CATEGORY_COUNT);
-    // Keep the selected category visible even when it is not in the top list.
-    const selected = categoriesForKind.find((c) => c.id === categoryId);
-    return selected && !top.includes(selected) ? [...top.slice(0, -1), selected] : top;
-  }, [categoriesForKind, showAllCategories, categoryQuery, categoryId]);
+    const pick = (type: Category['type']) =>
+      selectableCategories
+        .filter((c) => c.type === type && (!query || c.name.toLowerCase().includes(query)))
+        .sort((a, b) => (usage[b.id] ?? 0) - (usage[a.id] ?? 0) || a.name.localeCompare(b.name, 'pt-BR'));
+    const expense = { type: 'Expense' as const, title: 'Despesas', items: pick('Expense') };
+    const income = { type: 'Income' as const, title: 'Receitas', items: pick('Income') };
+    return kind === 'income' ? [income, expense] : [expense, income];
+  }, [selectableCategories, categoryQuery, prefs, kind]);
 
   const selectedCategory: Category | undefined = categories.find((c) => c.id === categoryId);
   const selectedCard = source?.type === 'card' ? cards.find((c) => c.id === source.id) : undefined;
@@ -197,10 +191,19 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
     if (selectedCategory && selectedCategory.type !== (next === 'income' ? 'Income' : 'Expense')) setCategoryId(null);
   }
 
-  function selectCategory(id: string) {
-    setCategoryId((current) => (current === id ? null : id));
+  // Picking an income category while on "Despesa" (or the opposite) switches
+  // the kind, so any registered category can be chosen from one list.
+  function selectCategory(category: Category) {
     setError(null);
+    setSuccess(null);
     Keyboard.dismiss();
+    if (category.id === categoryId) {
+      setCategoryId(null);
+      return;
+    }
+    const categoryKind: TxKind = category.type === 'Income' ? 'income' : 'expense';
+    if (kind !== categoryKind) setKind(categoryKind);
+    setCategoryId(category.id);
   }
 
   function draftFromState(): TransactionDraft {
@@ -261,7 +264,7 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
       await createTransaction(buildTransactionBody(draft));
       await rememberChoices();
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      emitDataChanged({ entity: 'transaction', id: null });
+      emitDataChanged();
 
       if (!addAnother) {
         router.back();
@@ -356,41 +359,43 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
       ) : (
         <>
           <Field label="Categoria">
-            {categoriesForKind.length > COLLAPSED_CATEGORY_COUNT ? (
+            {selectableCategories.length > SEARCH_THRESHOLD ? (
               <TextField
                 value={categoryQuery}
                 onChangeText={setCategoryQuery}
                 placeholder="Buscar categoria"
                 autoCorrect={false}
                 returnKeyType="search"
+                clearButtonMode="while-editing"
               />
             ) : null}
-            <ChipGroup>
-              {visibleCategories.map((c) => (
-                <Chip
-                  key={c.id}
-                  label={c.name}
-                  icon={c.icon}
-                  color={c.color}
-                  selected={c.id === categoryId}
-                  onPress={() => selectCategory(c.id)}
-                />
-              ))}
-              {!categoryQuery && categoriesForKind.length > COLLAPSED_CATEGORY_COUNT ? (
-                <Chip
-                  label={showAllCategories ? 'Menos' : `Mais (${categoriesForKind.length - COLLAPSED_CATEGORY_COUNT})`}
-                  onPress={() => setShowAllCategories((v) => !v)}
-                />
-              ) : null}
-              <Chip
-                icon="＋"
-                label="Nova"
-                onPress={() => router.push({ pathname: '/register/category', params: { type: categoryType } })}
-              />
-            </ChipGroup>
-            {categoriesForKind.length === 0 ? (
-              <Text style={styles.empty}>Nenhuma categoria de {kind === 'income' ? 'receita' : 'despesa'} ainda. Toque em “Nova”.</Text>
-            ) : null}
+            {selectableCategories.length === 0 ? (
+              <Text style={styles.empty}>Nenhuma categoria cadastrada. Cadastre pela versão web.</Text>
+            ) : (
+              categoryGroups.map((group) => (
+                <View key={group.type} style={styles.subGroup}>
+                  <Text style={styles.subLabel}>
+                    {group.title} ({group.items.length})
+                  </Text>
+                  {group.items.length === 0 ? (
+                    <Text style={styles.empty}>{categoryQuery ? 'Nenhuma encontrada.' : 'Nenhuma cadastrada.'}</Text>
+                  ) : (
+                    <ChipGroup>
+                      {group.items.map((c) => (
+                        <Chip
+                          key={c.id}
+                          label={c.name}
+                          icon={c.icon}
+                          color={c.color}
+                          selected={c.id === categoryId}
+                          onPress={() => selectCategory(c)}
+                        />
+                      ))}
+                    </ChipGroup>
+                  )}
+                </View>
+              ))
+            )}
           </Field>
 
           <Field
@@ -398,28 +403,31 @@ export function QuickAddForm({ initialKind }: { initialKind?: TxKind }) {
             hint={kind === 'income' && source?.type === 'card' ? 'Receita no cartão entra como estorno na fatura.' : null}
           >
             {sourceOptions.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.empty}>Cadastre uma conta ou um cartão para lançar.</Text>
-                <ChipGroup>
-                  <Chip icon="🏦" label="Nova conta" onPress={() => router.push('/register/account')} />
-                  <Chip icon="💳" label="Novo cartão" onPress={() => router.push('/register/card')} />
-                </ChipGroup>
-              </View>
+              <Text style={styles.empty}>Nenhuma conta ou cartão cadastrado. Cadastre pela versão web.</Text>
             ) : (
-              <ChipGroup>
-                {sourceOptions.map((option) => (
-                  <Chip
-                    key={`${option.source.type}-${option.source.id}`}
-                    label={option.label}
-                    icon={option.icon}
-                    selected={sameSource(option.source, source)}
-                    onPress={() => {
-                      setSource(option.source);
-                      setError(null);
-                    }}
-                  />
-                ))}
-              </ChipGroup>
+              sourceGroups.map((group) =>
+                group.options.length === 0 ? null : (
+                  <View key={group.title} style={styles.subGroup}>
+                    <Text style={styles.subLabel}>
+                      {group.title} ({group.options.length})
+                    </Text>
+                    <ChipGroup>
+                      {group.options.map((option) => (
+                        <Chip
+                          key={`${option.source.type}-${option.source.id}`}
+                          label={option.label}
+                          icon={option.icon}
+                          selected={sameSource(option.source, source)}
+                          onPress={() => {
+                            setSource(option.source);
+                            setError(null);
+                          }}
+                        />
+                      ))}
+                    </ChipGroup>
+                  </View>
+                ),
+              )
             )}
           </Field>
 
@@ -626,12 +634,7 @@ function TransferFields({
 
   if (accounts.length < 2) {
     return (
-      <View style={styles.emptyBox}>
-        <Text style={styles.empty}>Transferência precisa de pelo menos duas contas.</Text>
-        <ChipGroup>
-          <Chip icon="🏦" label="Nova conta" onPress={() => router.push('/register/account')} />
-        </ChipGroup>
-      </View>
+      <Text style={styles.empty}>Transferência precisa de pelo menos duas contas. Cadastre pela versão web.</Text>
     );
   }
 
@@ -675,7 +678,8 @@ const styles = StyleSheet.create({
   },
   amountCaption: { textAlign: 'center', fontSize: 13, color: colors.textMuted },
   empty: { fontSize: 14, color: colors.textMuted },
-  emptyBox: { gap: spacing.sm },
+  subGroup: { gap: spacing.sm },
+  subLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
   installments: { gap: spacing.md, marginTop: spacing.xs },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   stepButton: {
