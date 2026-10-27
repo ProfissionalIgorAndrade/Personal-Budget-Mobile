@@ -12,7 +12,6 @@ Current scope: **login** and an **empty dashboard** with log out.
 
    ```bash
    npm install
-   cp .env.example .env      # then edit EXPO_PUBLIC_API_URL
    npx expo start -c
    ```
 
@@ -22,23 +21,31 @@ If the iPhone cannot reach the dev server, try `npx expo start --tunnel`.
 
 ## Configuration
 
+Defaults work out of the box (production API). Copy `.env.example` to `.env` only to override.
+
 | Variable | Purpose |
 | --- | --- |
-| `EXPO_PUBLIC_API_URL` | Base URL of the production API |
-| `EXPO_PUBLIC_LOGIN_PATH` | Login endpoint path (default `/auth/login`) |
+| `EXPO_PUBLIC_API_URL` | Base URL of the API (default `https://personalbudget.fly.dev`) |
 | `EXPO_PUBLIC_USE_MOCK` | `true` = accept any credentials locally, no network |
 
-## Login contract (assumed, adjust if needed)
+## Authentication
 
-`src/api/authApi.ts` is the only file that knows the request/response shape:
+Implemented against `AuthenticationController` of the backend:
 
 ```
-POST {EXPO_PUBLIC_LOGIN_PATH}   { "email": string, "password": string }
-200 -> { "token": string }      (accessToken / access_token also accepted)
+POST /api/authentication/login    { email, password }
+200 -> { success, message, data: { userId, token, refreshToken } }
+POST /api/authentication/refresh  { refreshToken }   (rotates the refresh token)
+POST /api/authentication/logout   { refreshToken }
 ```
 
-The token is stored in the iOS Keychain (`expo-secure-store`) and sent as
-`Authorization: Bearer <token>` by `src/api/client.ts`.
+- The access token (JWT, 60 min) and the refresh token are stored in the iOS
+  Keychain (`expo-secure-store`).
+- `src/api/client.ts` sends `Authorization: Bearer <token>` for `auth: true`
+  requests and, on a 401, renews the token once (single-flight, because the
+  refresh token rotates) and retries. If renewal is rejected, the session is
+  cleared and the app returns to the login screen.
+- The login endpoint is rate limited to 5 attempts per minute per client.
 
 ## Structure
 
