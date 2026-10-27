@@ -42,10 +42,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     const data = text ? safeParse(text) : undefined;
 
     if (!response.ok) {
-      const message =
-        (data && typeof data === 'object' && 'message' in data && String((data as { message: unknown }).message)) ||
-        `Request failed with status ${response.status}`;
-      throw new ApiError(message, response.status);
+      throw new ApiError(extractMessage(data) ?? `Request failed with status ${response.status}`, response.status);
     }
 
     return data as T;
@@ -58,6 +55,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   } finally {
     clearTimeout(timer);
   }
+}
+
+function extractMessage(data: unknown): string | undefined {
+  if (data && typeof data === 'object' && 'message' in data) {
+    const message = (data as { message: unknown }).message;
+    if (typeof message === 'string' && message.length > 0) return message;
+  }
+  return undefined;
 }
 
 function safeParse(text: string): unknown {
