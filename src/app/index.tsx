@@ -38,14 +38,9 @@ export default function DashboardScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Dashboard</Text>
-          <View style={styles.headerActions}>
-            <Pressable onPress={() => router.push('/register')} hitSlop={12} accessibilityRole="button">
-              <Text style={styles.headerLink}>Cadastros</Text>
-            </Pressable>
-            <Pressable onPress={signOut} hitSlop={12} accessibilityRole="button" accessibilityLabel="Sair">
-              <Text style={styles.headerLink}>Sair</Text>
-            </Pressable>
-          </View>
+          <Pressable onPress={signOut} hitSlop={12} accessibilityRole="button" accessibilityLabel="Sair">
+            <Text style={styles.headerLink}>Sair</Text>
+          </Pressable>
         </View>
 
         <MonthSelector value={period} onChange={setPeriod} />
@@ -61,10 +56,8 @@ export default function DashboardScreen() {
 
       <Pressable
         onPress={() => router.push('/transaction/new')}
-        onLongPress={() => router.push('/register')}
         accessibilityRole="button"
         accessibilityLabel="Novo lançamento"
-        accessibilityHint="Toque e segure para ver todos os cadastros"
         style={({ pressed }) => [styles.fab, { bottom: insets.bottom + spacing.lg }, pressed && styles.fabPressed]}
       >
         <Text style={styles.fabText}>+</Text>
@@ -77,7 +70,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.md, gap: spacing.md },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerActions: { flexDirection: 'row', gap: spacing.lg },
   title: { fontSize: 28, fontWeight: '800', color: colors.text },
   headerLink: { fontSize: 16, color: colors.primary, fontWeight: '600' },
   fab: {

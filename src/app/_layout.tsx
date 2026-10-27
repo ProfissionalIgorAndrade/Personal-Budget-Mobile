@@ -24,13 +24,6 @@ function RootNavigator() {
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="index" />
         <Stack.Screen name="transaction/new" options={MODAL} />
-        <Stack.Screen name="register/index" options={MODAL} />
-        <Stack.Screen name="register/category" options={MODAL} />
-        <Stack.Screen name="register/card" options={MODAL} />
-        <Stack.Screen name="register/account" options={MODAL} />
-        <Stack.Screen name="register/savings-box" options={MODAL} />
-        <Stack.Screen name="register/member" options={MODAL} />
-        <Stack.Screen name="register/budget" options={MODAL} />
       </Stack.Protected>
       <Stack.Protected guard={!isSignedIn}>
         <Stack.Screen name="login" />
