@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { login as loginRequest, type LoginCredentials } from '@/api/authApi';
-import { clearToken, getToken, saveToken } from '@/auth/tokenStorage';
+import { login as loginRequest, logout as logoutRequest, type LoginCredentials } from '@/api/authApi';
+import { onSessionExpired } from '@/auth/sessionEvents';
+import { clearTokens, getTokens, saveTokens } from '@/auth/tokenStorage';
 
 type AuthState = {
-  token: string | null;
+  isSignedIn: boolean;
   isLoading: boolean;
   signIn: (credentials: LoginCredentials) => Promise<void>;
   signOut: () => Promise<void>;
@@ -13,15 +14,15 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+  const [isSignedIn, setIsSignedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Restore the session from secure storage on app start.
   useEffect(() => {
     let active = true;
-    getToken()
-      .then((stored) => {
-        if (active) setToken(stored);
+    getTokens()
+      .then((tokens) => {
+        if (active) setIsSignedIn(tokens !== null);
       })
       .catch(() => {
         // Unreadable storage: treat as signed out.
@@ -34,18 +35,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // The API client signals when the refresh token was rejected.
+  useEffect(() => onSessionExpired(() => setIsSignedIn(false)), []);
+
   const signIn = useCallback(async (credentials: LoginCredentials) => {
-    const newToken = await loginRequest(credentials);
-    await saveToken(newToken);
-    setToken(newToken);
+    const tokens = await loginRequest(credentials);
+    await saveTokens(tokens);
+    setIsSignedIn(true);
   }, []);
 
   const signOut = useCallback(async () => {
-    await clearToken();
-    setToken(null);
+    const tokens = await getTokens();
+    if (tokens) await logoutRequest(tokens.refreshToken);
+    await clearTokens();
+    setIsSignedIn(false);
   }, []);
 
-  const value = useMemo(() => ({ token, isLoading, signIn, signOut }), [token, isLoading, signIn, signOut]);
+  const value = useMemo(() => ({ isSignedIn, isLoading, signIn, signOut }), [isSignedIn, isLoading, signIn, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

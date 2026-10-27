@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { colors } from '@/theme';
 
 function RootNavigator() {
-  const { token, isLoading } = useAuth();
+  const { isSignedIn, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -15,8 +15,6 @@ function RootNavigator() {
       </View>
     );
   }
-
-  const isSignedIn = token !== null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
