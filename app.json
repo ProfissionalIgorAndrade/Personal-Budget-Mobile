@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "personal-budget-mobile",
+    "name": "PersonalBudget",
     "slug": "personal-budget-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.igor.personalbudget"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +21,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "scheme": "personalbudget",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
