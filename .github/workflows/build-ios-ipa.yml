@@ -1,0 +1,49 @@
+name: Build unsigned iOS IPA
+
+# Produces an unsigned .ipa meant to be sideloaded (SideStore / AltStore),
+# which re-signs it on the device with the owner's own Apple ID.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate the native iOS project
+        run: npx expo prebuild --platform ios --no-install && cd ios && pod install
+
+      - name: Build Release without code signing
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -n 1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package the .ipa
+        run: |
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -n 1)
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry PersonalBudget.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PersonalBudget-ipa
+          path: PersonalBudget.ipa
+          retention-days: 30
