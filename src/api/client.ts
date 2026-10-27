@@ -26,6 +26,15 @@ type RequestOptions = {
 
 type RawResponse = { status: number; ok: boolean; payload: unknown };
 
+// Same rule as the web app: every authenticated request is scoped to the
+// household whose members/categories/cards the user is choosing from, so a
+// profile id from one household is never sent to another.
+let activeHouseholdId: string | null = null;
+
+export function setActiveHouseholdId(id: string | null): void {
+  activeHouseholdId = id;
+}
+
 const REFRESH_PATH = '/api/authentication/refresh';
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -90,6 +99,7 @@ async function send(path: string, options: RequestOptions, accessToken: string |
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(accessToken && activeHouseholdId ? { 'X-Household-Id': activeHouseholdId } : {}),
         ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
