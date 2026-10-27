@@ -34,13 +34,13 @@ export async function login({ email, password }: LoginCredentials): Promise<Toke
     // The backend tells "user not found" apart from "wrong password"; show one
     // generic message so the app does not reveal which emails exist.
     if (error instanceof ApiError && error.status === 400) {
-      throw new ApiError('Incorrect email or password.', 400);
+      throw new ApiError('E-mail ou senha incorretos.', 400);
     }
     throw error;
   }
 
   if (!data?.token || !data.refreshToken) {
-    throw new ApiError('Unexpected login response from the server.');
+    throw new ApiError('Resposta inesperada do servidor ao entrar.');
   }
   return { accessToken: data.token, refreshToken: data.refreshToken };
 }

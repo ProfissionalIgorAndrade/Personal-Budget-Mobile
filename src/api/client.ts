@@ -32,7 +32,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const tokens = options.auth ? await getTokens() : null;
   if (options.auth && !tokens) {
     emitSessionExpired();
-    throw new ApiError('Your session expired. Please sign in again.', 401);
+    throw new ApiError('Sua sessão expirou. Entre novamente.', 401);
   }
 
   let response = await send(path, options, tokens?.accessToken ?? null);
@@ -42,7 +42,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (!renewedToken) {
       await clearTokens();
       emitSessionExpired();
-      throw new ApiError('Your session expired. Please sign in again.', 401);
+      throw new ApiError('Sua sessão expirou. Entre novamente.', 401);
     }
     response = await send(path, options, renewedToken);
   }
@@ -100,9 +100,9 @@ async function send(path: string, options: RequestOptions, accessToken: string |
     return { status: response.status, ok: response.ok, payload: text ? safeParse(text) : undefined };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('The request timed out. Check your connection and try again.');
+      throw new ApiError('A requisição demorou demais. Verifique sua conexão e tente novamente.');
     }
-    throw new ApiError('Could not reach the server. Check your connection and try again.');
+    throw new ApiError('Não foi possível acessar o servidor. Verifique sua conexão e tente novamente.');
   } finally {
     clearTimeout(timer);
   }
@@ -110,7 +110,7 @@ async function send(path: string, options: RequestOptions, accessToken: string |
 
 function unwrap<T>(response: RawResponse): T {
   if (!response.ok) {
-    throw new ApiError(extractMessage(response.payload) ?? `Request failed with status ${response.status}`, response.status);
+    throw new ApiError(extractMessage(response.payload) ?? `Falha na requisição (status ${response.status})`, response.status);
   }
   return extractData(response.payload) as T;
 }

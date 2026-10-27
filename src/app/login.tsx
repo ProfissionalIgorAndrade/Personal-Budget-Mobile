@@ -33,7 +33,7 @@ export default function LoginScreen() {
       await signIn({ email: email.trim(), password });
       // On success the auth guard in the root layout swaps to the dashboard.
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not sign in. Please try again.');
+      setError(e instanceof Error ? e.message : 'Não foi possível entrar. Tente novamente.');
       setSubmitting(false);
     }
   }
@@ -48,10 +48,10 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>PersonalBudget</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+        <Text style={styles.subtitle}>Entre para continuar</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>E-mail</Text>
           <TextInput
             style={styles.input}
             value={email}
@@ -67,12 +67,12 @@ export default function LoginScreen() {
             returnKeyType="next"
           />
 
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>Senha</Text>
           <TextInput
             style={styles.input}
             value={password}
             onChangeText={setPassword}
-            placeholder="Your password"
+            placeholder="Sua senha"
             placeholderTextColor={colors.textMuted}
             secureTextEntry
             textContentType="password"
@@ -94,7 +94,7 @@ export default function LoginScreen() {
             disabled={!canSubmit}
             accessibilityRole="button"
           >
-            {submitting ? <ActivityIndicator color={colors.primaryText} /> : <Text style={styles.buttonText}>Sign in</Text>}
+            {submitting ? <ActivityIndicator color={colors.primaryText} /> : <Text style={styles.buttonText}>Entrar</Text>}
           </Pressable>
         </View>
       </ScrollView>
